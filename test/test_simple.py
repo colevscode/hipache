@@ -11,6 +11,19 @@ class SimpleTestCase(base.TestCase):
         self.register_frontend('foobar', ['http://localhost:{0}'.format(port)])
         self.assertEqual(self.http_request('foobar'), 200)
 
+    def test_https(self):
+        """ Https test: backend that handles https separately """
+        port = 2080
+        self.spawn_httpd(port, body='http')
+        self.spawn_httpd(port+1, body='https')
+        self.register_frontend('foobar', ['http://localhost:{0}'.format(port)])
+        self.register_frontend('foobar', ['http://localhost:{0}'.format(port+1)], 
+                               proto='https')
+        response = self.http_request('foobar', check_text=True)
+        self.assertEqual(response, 'http')
+        response = self.http_request('foobar', check_text=True, proto='https', port=4443)
+        self.assertEqual(response, 'https')
+
     def test_multiple_backends(self):
         """ Simple test with 3 backends """
         port = 2080
@@ -46,6 +59,27 @@ class SimpleTestCase(base.TestCase):
         # Then all request should reach the healthy one
         for i in xrange(5):
             self.assertEqual(self.http_request('foobar'), 200)
+
+    def test_one_failing_proto(self):
+        """ One of the backends returns a 502 """
+        port = 2080
+        self.spawn_httpd(port, code=502)
+        self.spawn_httpd(port + 1, code=200)
+        # Duplicating the backend in the conf
+        self.register_frontend('foobar', [
+            'http://localhost:{0}'.format(port),
+            'http://localhost:{0}'.format(port + 1)
+            ], proto='https')
+        self.register_frontend('foobar', ['http://localhost:{0}'.format(port)])
+        # Generate some traffic to force the failing one to be removed
+        for i in xrange(5):
+            self.http_request('foobar', proto='https', port=4443)
+        # Then all request should reach the healthy one
+        for i in xrange(5):
+            self.assertEqual(self.http_request('foobar', proto='https', port=4443), 200)
+        # Bad server should still exist on non-protocol route
+        self.assertEqual(self.http_request('foobar'), 502)
+
 
     def test_one_crashed(self):
         """ One of the backends does not bind """

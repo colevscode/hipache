@@ -3,12 +3,17 @@
         "debug": true,
         "accessLog": "/tmp/proxy2_test_access.log",
         "port": 1080,
-        "workers": 2,
+        "workers": 1,
         "maxSockets": 100,
         "deadBackendTTL": 30,
         "tcpTimeout": 5,
         "retryOnError": 0,
         "deadBackendOn500": true,
-        "httpKeepAlive": false
+        "httpKeepAlive": false,
+        "https": {
+            "port": 4443,
+            "key": "test/test.key",
+            "cert": "test/test.crt"
+        }
     }
 }

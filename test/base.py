@@ -92,29 +92,30 @@ class TestCase(unittest.TestCase):
         if pid in self._httpd_pids:
             self._httpd_pids.remove(pid)
 
-    def register_frontend(self, frontend, backends_url):
-        self.redis.rpush('frontend:{0}'.format(frontend), frontend, *backends_url)
-        self._frontends.append(frontend)
+    def register_frontend(self, frontend, backends_url, proto='', prefix=''):
+        frontendkey = ':'.join(filter(None, (proto, frontend)))
+        self.redis.rpush('{0}frontend:{1}'.format(prefix, frontendkey), frontend, *backends_url)
+        self._frontends.append(frontendkey)
 
-    def unregister_frontend(self, frontend):
-        self.redis.delete('frontend:{0}'.format(frontend))
-        self.redis.delete('dead:{0}'.format(frontend))
-        if frontend in self._frontends:
-            self._frontends.remove(frontend)
+    def unregister_frontend(self, frontend, proto='', prefix=''):
+        frontendkey = ':'.join(filter(None, (proto, frontend)))
+        self.redis.delete('{0}frontend:{1}'.format(prefix, frontendkey))
+        self.redis.delete('{0}dead:{1}'.format(prefix, frontendkey))
+        if frontendkey in self._frontends:
+            self._frontends.remove(frontendkey)
 
     def unregister_all_frontends(self):
         # Copy the list of frontend since we modify the list inside the loop
         for frontend in list(self._frontends):
             self.unregister_frontend(frontend)
 
-    def http_request(self, host, port=1080):
+    def http_request(self, host, port=1080, proto='http', check_text=False):
         try:
             headers = {'Host': host, 'X-Debug': 'true'}
-            r = requests.get('http://localhost:{0}/'.format(port),
-                    headers=headers,
-                    timeout=1.0)
+            r = requests.get(proto+'://localhost:{0}/'.format(port),
+                    headers=headers, timeout=1.0, verify=False)
             logger.debug('Frontend: {0}; Headers: {1}; Payload: "{2}"'.format(
                 host, r.headers, r.text))
-            return r.status_code
-        except (requests.ConnectionError, requests.Timeout, socket.timeout):
+            return r.text if check_text else r.status_code
+        except (requests.ConnectionError, requests.Timeout, socket.timeout) as e:
             return -1
